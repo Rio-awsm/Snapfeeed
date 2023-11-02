@@ -15,15 +15,24 @@ import {
 import { Input } from "@/components/ui/input";
 import { SignupValidation } from "@/lib/validation";
 import Loader from "@/components/shared/Loader";
-import { Link } from "react-router-dom";
-import { createUserAccount } from "@/lib/appwrite/api";
-import { useToast } from "@/components/ui/use-toast"
-
+import { Link, useNavigate } from "react-router-dom";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  useCreateUserAccountMutation,
+  useSigninAccountMutation,
+} from "@/lib/react-query/queries";
+import { useUserContext } from "@/context/AuthContext";
 
 const SignupForm = () => {
-  const { toast } = useToast()
+  const { toast } = useToast();
+  const { checkAuthUser, isLoading: isUserLoading } = useUserContext();
+  const navigate = useNavigate();
 
-  const isLoading = false;
+  const { mutateAsync: createUserAccount, ispending: iscreatingUser } =
+    useCreateUserAccountMutation();
+
+  const { mutateAsync: signInAccount, ispending: isSigningIn } =
+    useSigninAccountMutation();
 
   const form = useForm<z.infer<typeof SignupValidation>>({
     resolver: zodResolver(SignupValidation),
@@ -38,13 +47,29 @@ const SignupForm = () => {
   async function onSubmit(values: z.infer<typeof SignupValidation>) {
     const newUser = await createUserAccount(values);
 
-    if(!newUser) {
+    if (!newUser) {
       return toast({
         title: "Signup failed. Try again",
-      })
+      });
     }
-    // const session  = await signInAccount()
-    
+    const session = await signInAccount({
+      email: values.email,
+      password: values.password,
+    });
+
+    if (!session) {
+      return toast({ title: "Signin failed. Try again" });
+    }
+
+    const isLoggedIn = await checkAuthUser();
+
+    if(isLoggedIn) {
+      form.reset();
+
+      navigate('/')
+    } else{
+      return toast({ title: "Signup failed. Try again" });
+    }
   }
 
   return (
@@ -121,22 +146,25 @@ const SignupForm = () => {
           />
 
           <Button type="submit" className="shad-button_primary">
-            {isLoading ? (
+            {iscreatingUser ? (
               <div className="flex-center gap-2">
-                <Loader />Loading...
+                <Loader />
+                Loading...
               </div>
-            ) : "Sign up"}
+            ) : (
+              "Sign up"
+            )}
           </Button>
 
           <p className="text-small-regular text-light-2 text-center mt-2">
             Already have an account?
             <Link
               to="/sign-in"
-              className="text-primary-500 text-small-semibold ml-1">
+              className="text-primary-500 text-small-semibold ml-1"
+            >
               Log in
             </Link>
           </p>
-
         </form>
       </div>
     </Form>
